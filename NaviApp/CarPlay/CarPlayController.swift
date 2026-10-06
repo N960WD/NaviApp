@@ -237,7 +237,7 @@ final class CarPlayController {
                 self.session.load(route)
                 self.updateRoutes(self.store.routes)
                 self.refresh(force: true)
-                self.tabs.selectTemplate(self.dashboard)
+                self.tabs.select(self.dashboard)
                 completion()
             }
             return item
