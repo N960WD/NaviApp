@@ -5,3 +5,8 @@ DerivedData/
 .swiftpm/
 *.xcodeproj/
 NaviApp/Resources/Info.plist
+
+# exam-formatter
+__pycache__/
+.pytest_cache/
+exam-formatter/tests/*.pdf

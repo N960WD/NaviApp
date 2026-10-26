@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam Formatter</title>
+<style>
+  :root {
+    --bg: #f5f7fa; --card: #fff; --text: #1f2328; --muted: #6b7280;
+    --accent: #2b6cb0; --accent-tint: #eaf2fb; --border: #d5dce4; --error: #b42318;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  main { width: 100%; max-width: 520px; background: var(--card); border-radius: 14px;
+         padding: 32px; box-shadow: 0 1px 3px rgb(0 0 0 / .06), 0 8px 24px rgb(0 0 0 / .05); }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  p.lead { margin: 0 0 24px; color: var(--muted); }
+  #drop {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+    border: 2px dashed var(--border); border-radius: 12px; padding: 36px 16px; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #drop:hover, #drop.over { border-color: var(--accent); background: var(--accent-tint); }
+  #drop strong { color: var(--accent); }
+  #drop small { color: var(--muted); }
+  input[type=file] { display: none; }
+  #status { margin-top: 18px; min-height: 24px; display: flex; align-items: center; gap: 10px; }
+  #status.error { color: var(--error); }
+  .spinner { width: 18px; height: 18px; border: 2.5px solid var(--accent-tint);
+             border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  a.download { display: inline-block; margin-top: 4px; padding: 10px 18px; border-radius: 8px;
+               background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Exam Formatter</h1>
+  <p class="lead">Upload an exam PDF. You'll get back a cleanly formatted Word document with
+    writing spaces in place of every “Blank 1”, “Blank 2”, …</p>
+
+  <label id="drop" for="file">
+    <strong>Choose a PDF</strong>
+    <span>or drag it here</span>
+    <small>Up to 40 MB · text-based PDFs</small>
+  </label>
+  <input id="file" type="file" accept="application/pdf,.pdf">
+  <div id="status" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+  const drop = document.getElementById("drop");
+  const input = document.getElementById("file");
+  const status = document.getElementById("status");
+
+  function setStatus(html, isError = false) {
+    status.innerHTML = html;
+    status.className = isError ? "error" : "";
+  }
+
+  async function upload(file) {
+    if (!file) return;
+    if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") {
+      return setStatus("Please choose a PDF file.", true);
+    }
+    setStatus('<div class="spinner"></div> Formatting ' + escapeHtml(file.name) + "…");
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      const res = await fetch("convert", { method: "POST", body });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Conversion failed." }));
+        return setStatus(escapeHtml(err.error), true);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i);
+      const name = m ? decodeURIComponent(m[1]) : "exam (formatted).docx";
+      const url = URL.createObjectURL(blob);
+      const count = res.headers.get("X-Question-Count");
+
+      // Start the download automatically, and leave a button in case the browser blocks it.
+      const a = document.createElement("a");
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setStatus(`<div>Done${count ? ` — ${count} questions` : ""}.<br>
+        <a class="download" href="${url}" download="${escapeHtml(name)}">Download ${escapeHtml(name)}</a></div>`);
+    } catch (e) {
+      setStatus("Network error — is the server running?", true);
+    } finally {
+      input.value = "";
+    }
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  input.addEventListener("change", () => upload(input.files[0]));
+  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => upload(e.dataTransfer.files[0]));
+</script>
+</body>
+</html>
